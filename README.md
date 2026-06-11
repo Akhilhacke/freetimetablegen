@@ -1,21 +1,22 @@
 # FreeTimetableGen
 
-AI-powered timetable generator for educational institutions.
+AI-powered timetable generator for educational institutions. Built with FastAPI + Alpine.js.
 
 ## Features
 
-- Automated timetable generation with constraint-based scheduling
-- Drag-and-drop timetable editor with conflict detection
-- Subject, teacher, class, and room management
-- Export to Excel, CSV, and PDF
-- Teacher availability and substitution management
-- Role-based access (Admin, Teacher, Student)
+- **Automated generation** — constraint-based scheduling with teacher availability, room types, and subject period limits
+- **Drag-and-drop editor** — swap periods interactively with real-time conflict detection
+- **Entity management** — subjects, teachers, classes, rooms, teacher-subject assignments
+- **Export** — Excel, CSV, PDF (via `fpdf2`), and Print
+- **Substitutions** — manage substitute teachers for absent staff
+- **Role-based access** — Admin, Teacher, Student
+- **Light theme** — clean UI with indigo accent
 
 ## Tech Stack
 
 - **Backend:** FastAPI (Python)
 - **Frontend:** Jinja2 templates + Alpine.js + custom CSS
-- **Database:** SQLite (local) / PostgreSQL (production)
+- **Database:** SQLite (local development) / PostgreSQL (production via `psycopg2`)
 - **Icons:** Font Awesome
 
 ## Quick Start (Local)
@@ -31,29 +32,37 @@ Open http://localhost:8000
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Akhilhacke/freetimetablegen)
 
-### 1. Set up PostgreSQL
+### Prerequisites
 
-Get a free PostgreSQL database from [Neon](https://neon.tech) or [Supabase](https://supabase.com). Copy the connection string.
+Get a free PostgreSQL database from [Neon](https://neon.tech), [Supabase](https://supabase.com), or [Aiven](https://aiven.io). Copy the connection string (starts with `postgresql://...`).
 
-### 2. Deploy
+### Steps
 
 1. Push this repo to GitHub
 2. Go to [vercel.com](https://vercel.com) and import the repository
-3. Add environment variable:
+3. Add **environment variable** in Vercel dashboard (Settings → Environment Variables):
    - `DATABASE_URL` — your PostgreSQL connection string
 4. Click **Deploy**
 
-The app auto-creates all tables on first run.
+> **Note:** Without `DATABASE_URL`, the app falls back to SQLite which is ephemeral on serverless — data will not persist across cold starts. Always set up PostgreSQL for production.
 
 ## Project Structure
 
 ```
 backend/
   app.py              - FastAPI application & routes
-  database.py         - Database schema & connection (SQLite + PostgreSQL)
-  timetable_engine.py - Timetable generation & swap logic
-templates/            - Jinja2 HTML templates
+  database.py         - Dual-dialect schema (SQLite + PostgreSQL)
+  timetable_engine.py - Generation, swap, and conflict detection
+templates/            - Jinja2 HTML templates (landing, dashboard, etc.)
 static/               - CSS, JS, fonts
 api/index.py          - Vercel serverless entry point
-vercel.json           - Vercel configuration
+vercel.json           - Vercel build & route configuration
 ```
+
+## Environment Variables
+
+| Variable       | Required | Description                              |
+|---------------|----------|------------------------------------------|
+| `DATABASE_URL` | No*      | PostgreSQL connection string for Vercel  |
+
+\* Required for persistent storage on Vercel. Falls back to SQLite otherwise.
