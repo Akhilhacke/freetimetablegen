@@ -18,8 +18,12 @@ app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), na
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 # Initialize database — runs at import time (works for both local and Vercel serverless)
-init_db()
-migrate_db()
+try:
+    init_db()
+    migrate_db()
+except Exception as e:
+    import sys
+    print(f"[FreeTimetableGen] DB init warning: {e}", file=sys.stderr)
 
 def get_current_user(request: Request):
     token = request.cookies.get("session_token")
@@ -32,6 +36,11 @@ def require_admin(request: Request):
     return user
 
 # ─── AUTH ROUTES ───
+@app.get("/api/health")
+async def health():
+    import database as db_mod
+    return {"status": "ok", "database": "postgresql" if db_mod.USE_POSTGRES else "sqlite", "use_postgres": db_mod.USE_POSTGRES}
+
 @app.get("/", response_class=HTMLResponse)
 async def landing(request: Request):
     return templates.TemplateResponse(request, "landing.html")
