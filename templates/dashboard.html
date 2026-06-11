@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — FreeTimetableGen</title>
+    <link rel="stylesheet" href="/static/css/app.css?v=2">
+    <link rel="stylesheet" href="/static/css/fontawesome.min.css">
+    <script src="/static/js/alpine.min.js" defer></script>
+    <style>
+        .sidebar-link.active { background: #EEF2FF; color: #4F46E5; }
+        .export-btn { width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; border:none; cursor:pointer; background:transparent; transition:background 0.15s; font-size:15px; }
+        .export-btn:hover { background:#F1F5F9; }
+        .cell-drop { transition: all 0.15s; }
+        .cell-drop.drag-over { background: rgba(79,70,229,0.08); outline: 2px dashed #4F46E5; outline-offset: -2px; border-radius: 8px; }
+        .tt-cell { user-select: none; }
+        .tt-cell:active { cursor: grabbing; }
+        .tt-cell.dragging { opacity: 0.4; }
+        .cell-empty { min-height: 44px; }
+        .main-header { position: fixed; top: 0; z-index: 30; background: #fff; border-bottom: 1px solid #E2E8F0; }
+        @media (min-width: 1024px) { .main-header { left: 16rem; right: 0; } }
+        @media (max-width: 1023px) { .main-header { left: 0; right: 0; } }
+        @media print { body * { visibility: visible !important; } .sidebar, .main-header, .export-btn, .config-panel { display: none !important; } .tt-cell { break-inside: avoid; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .cell-drop.drag-over, .cell-drop { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+    </style>
+</head>
+<body class="font-sans bg-surface-900 text-body min-h-screen" x-data="dashboardApp()" x-init="init()">
+    
+    <!-- Mobile Sidebar Overlay -->
+    <div x-show="sidebarOpen" x-transition:enter="transition-opacity duration-200" x-transition:leave="transition-opacity duration-200"
+         @click="sidebarOpen = false" class="fixed inset-0 bg-black/30 z-40 lg:hidden"></div>
+
+    <!-- ===== A. LEFT SIDEBAR ===== -->
+    <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'" 
+           class="fixed left-0 top-0 bottom-0 w-64 bg-white border-r border-surface-300 z-50 transform transition-transform duration-200 lg:translate-x-0 flex flex-col shadow-lg">
+        
+        <!-- Logo -->
+        <div class="h-16 flex items-center gap-3 px-5 border-b border-surface-300 flex-shrink-0">
+            <div class="w-9 h-9 rounded-xl bg-brand-500 flex items-center justify-center shadow-sm">
+                <i class="fas fa-calendar-alt text-white text-sm"></i>
+            </div>
+            <span class="text-lg font-bold" style="color:#0F172A">FreeTimetableGen</span>
+        </div>
+
+        <!-- Nav Items -->
+        <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
+            <a href="/dashboard" class="sidebar-link active flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition">
+                <i class="fas fa-home w-5 text-center" style="color:#4F46E5"></i>
+                <span>Dashboard</span>
+            </a>
+
+            {% if user.role == 'admin' %}
+            <div class="pt-4 pb-1 px-3">
+                <span class="text-xs font-semibold uppercase tracking-wider" style="color:#94A3B8">Management</span>
+            </div>
+            <a href="/manage/teachers" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition" style="color:#64748B" onmouseover="this.style.color='#0F172A';this.style.background='#F1F5F9'" onmouseout="if(!this.classList.contains('active')){this.style.color='#64748B';this.style.background='transparent'}">
+                <i class="fas fa-chalkboard-teacher w-5 text-center"></i> Teachers
+            </a>
+            <a href="/manage/classes" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition" style="color:#64748B" onmouseover="this.style.color='#0F172A';this.style.background='#F1F5F9'" onmouseout="if(!this.classList.contains('active')){this.style.color='#64748B';this.style.background='transparent'}">
+                <i class="fas fa-school w-5 text-center"></i> Classes
+            </a>
+            <a href="/manage/subjects" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition" style="color:#64748B" onmouseover="this.style.color='#0F172A';this.style.background='#F1F5F9'" onmouseout="if(!this.classList.contains('active')){this.style.color='#64748B';this.style.background='transparent'}">
+                <i class="fas fa-book w-5 text-center"></i> Subjects
+            </a>
+            <a href="/manage/rooms" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition" style="color:#64748B" onmouseover="this.style.color='#0F172A';this.style.background='#F1F5F9'" onmouseout="if(!this.classList.contains('active')){this.style.color='#64748B';this.style.background='transparent'}">
+                <i class="fas fa-door-open w-5 text-center"></i> Rooms
+            </a>
+
+            <div class="pt-4 pb-1 px-3">
+                <span class="text-xs font-semibold uppercase tracking-wider" style="color:#94A3B8">Timetable</span>
+            </div>
+            <a href="/timetable" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition" style="color:#64748B" onmouseover="this.style.color='#0F172A';this.style.background='#F1F5F9'" onmouseout="if(!this.classList.contains('active')){this.style.color='#64748B';this.style.background='transparent'}">
+                <i class="fas fa-calendar-week w-5 text-center"></i> View Timetable
+            </a>
+            <a href="/substitutions" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition" style="color:#64748B" onmouseover="this.style.color='#0F172A';this.style.background='#F1F5F9'" onmouseout="if(!this.classList.contains('active')){this.style.color='#64748B';this.style.background='transparent'}">
+                <i class="fas fa-exchange-alt w-5 text-center"></i> Substitutions
+            </a>
+
+            <!-- Generate Timetable Button (Highlighted) -->
+            <div class="pt-4 px-3">
+                <button @click="generateNow()" class="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition shadow-sm" style="background:#4F46E5;color:#FFFFFF" onmouseover="this.style.background='#6366F1'" onmouseout="this.style.background='#4F46E5'">
+                    <i class="fas fa-magic"></i> Generate Timetable
+                </button>
+            </div>
+            {% endif %}
+
+            {% if user.role == 'teacher' %}
+            <div class="pt-4 pb-1 px-3">
+                <span class="text-xs font-semibold uppercase tracking-wider" style="color:#94A3B8">Timetable</span>
+            </div>
+            <a href="/timetable?teacher_id={{ user.id }}" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition" style="color:#64748B" onmouseover="this.style.color='#0F172A';this.style.background='#F1F5F9'" onmouseout="if(!this.classList.contains('active')){this.style.color='#64748B';this.style.background='transparent'}">
+                <i class="fas fa-calendar-week w-5 text-center"></i> My Schedule
+            </a>
+            {% endif %}
+
+            {% if user.role == 'student' %}
+            <a href="/timetable" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition" style="color:#64748B" onmouseover="this.style.color='#0F172A';this.style.background='#F1F5F9'" onmouseout="if(!this.classList.contains('active')){this.style.color='#64748B';this.style.background='transparent'}">
+                <i class="fas fa-calendar-week w-5 text-center"></i> My Timetable
+            </a>
+            {% endif %}
+
+            <!-- Spacer to push settings to bottom -->
+            <div class="flex-1 min-h-[20px]"></div>
+        </nav>
+
+        <!-- Settings (Bottom) -->
+        {% if user.role == 'admin' %}
+        <div class="p-3 border-t border-surface-300 flex-shrink-0">
+            <a href="/settings" class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition" style="color:#64748B" onmouseover="this.style.color='#0F172A';this.style.background='#F1F5F9'" onmouseout="if(!this.classList.contains('active')){this.style.color='#64748B';this.style.background='transparent'}">
+                <i class="fas fa-cog w-5 text-center"></i> Settings
+            </a>
+        </div>
+        {% endif %}
+    </aside>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <div class="lg:ml-64 min-h-screen flex flex-col">
+
+        <!-- ===== B. TOP NAVBAR ===== -->
+        <header class="main-header">
+            <div class="flex items-center justify-between h-16 px-4 sm:px-6">
+                <!-- Left: Hamburger + Title -->
+                <div class="flex items-center gap-4">
+                    <button @click="sidebarOpen = !sidebarOpen" class="lg:hidden" style="color:#64748B">
+                        <i class="fas fa-bars text-xl"></i>
+                    </button>
+                    <h1 class="text-lg font-bold" style="color:#0F172A">Dashboard</h1>
+                </div>
+
+                <!-- Right: Search + Notifications + Profile -->
+                <div class="flex items-center gap-4">
+                    <!-- Search Bar -->
+                    <div class="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-sm" style="background:#F1F5F9;color:#94A3B8">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Search..." class="bg-transparent border-none outline-none text-sm" style="color:#0F172A;min-width:160px" x-model="searchQuery">
+                    </div>
+
+                    <!-- Notifications -->
+                    <div class="relative" x-data="{ notifOpen: false }">
+                        <button @click="notifOpen = !notifOpen" class="w-9 h-9 rounded-xl flex items-center justify-center relative transition" style="background:#F1F5F9;color:#64748B" onmouseover="this.style.background='#E2E8F0'" onmouseout="this.style.background='#F1F5F9'">
+                            <i class="fas fa-bell"></i>
+                            <span x-show="notifications.length > 0" class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[10px] flex items-center justify-center text-white" x-text="notifications.length"></span>
+                        </button>
+                        <div x-show="notifOpen" @click.away="notifOpen = false" class="absolute right-0 mt-2 w-72 bg-white rounded-xl border border-surface-300 shadow-xl z-10" style="display:none">
+                            <div class="p-3 border-b border-surface-300 font-semibold text-sm">Notifications</div>
+                            <template x-for="n in notifications" :key="n.id">
+                                <div class="px-4 py-3 text-sm border-b border-surface-300/50 hover:bg-surface-100/50 transition">
+                                    <p class="font-medium" x-text="n.title"></p>
+                                    <p class="text-xs mt-0.5" style="color:#94A3B8" x-text="n.message"></p>
+                                </div>
+                            </template>
+                            <template x-if="notifications.length === 0">
+                                <div class="px-4 py-6 text-center text-sm" style="color:#94A3B8">
+                                    <i class="fas fa-bell-slash mr-2"></i>No new notifications
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- User Profile -->
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" @click.outside="open = false" class="flex items-center gap-3 px-3 py-2 rounded-xl transition cursor-pointer" style="background:#F1F5F9" onmouseover="this.style.background='#E2E8F0'" onmouseout="this.style.background='#F1F5F9'">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style="background:#4F46E5">
+                                {{ user.full_name[:1].upper() }}
+                            </div>
+                            <div class="hidden sm:block text-sm leading-tight text-left">
+                                <p class="font-medium" style="color:#0F172A">{{ user.full_name }}</p>
+                                <p class="text-xs capitalize" style="color:#94A3B8">{{ user.role }}</p>
+                            </div>
+                            <i class="fas fa-chevron-down text-xs transition" style="color:#94A3B8" x-bind:style="open ? 'color:#4F46E5; transform:rotate(180deg)' : 'color:#94A3B8'"></i>
+                        </button>
+                        <div x-show="open" x-transition class="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl border border-surface-300 shadow-lg py-1 z-50">
+                            <div class="px-4 py-3 border-b border-surface-300">
+                                <p class="text-sm font-semibold" style="color:#0F172A">{{ user.full_name }}</p>
+                                <p class="text-xs" style="color:#94A3B8">{{ user.email }}</p>
+                            </div>
+                            <a href="/settings" class="flex items-center gap-2 px-4 py-2 text-sm transition" style="color:#0F172A" onmouseover="this.style.background='#F1F5F9'" onmouseout="this.style.background='transparent'">
+                                <i class="fas fa-user-cog" style="width:16px;font-size:12px;color:#4F46E5"></i>
+                                Profile Settings
+                            </a>
+                            <a href="/timetable" class="flex items-center gap-2 px-4 py-2 text-sm transition" style="color:#0F172A" onmouseover="this.style.background='#F1F5F9'" onmouseout="this.style.background='transparent'">
+                                <i class="fas fa-calendar-alt" style="width:16px;font-size:12px;color:#4F46E5"></i>
+                                View Timetable
+                            </a>
+                            <div class="border-t border-surface-300 my-1"></div>
+                            <a href="/logout" class="flex items-center gap-2 px-4 py-2 text-sm transition" style="color:#EF4444" onmouseover="this.style.background='#FEF2F2'" onmouseout="this.style.background='transparent'">
+                                <i class="fas fa-sign-out-alt" style="width:16px;font-size:12px"></i>
+                                Logout
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- ===== C. MAIN CONTENT AREA ===== -->
+        <main class="flex-1 p-4 sm:p-6 lg:p-8 pt-16">
+
+            <!-- Stats Cards: Teachers, Classes, Conflicts -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                <div class="bg-white rounded-xl p-5 border border-surface-300 shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <p class="text-sm font-medium" style="color:#64748B">Total Teachers</p>
+                        <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:rgba(79,70,229,0.1)">
+                            <i class="fas fa-chalkboard-teacher" style="color:#4F46E5"></i>
+                        </div>
+                    </div>
+                    <p class="text-3xl font-extrabold" style="color:#0F172A" x-text="stats.teachers">0</p>
+                </div>
+
+                <div class="bg-white rounded-xl p-5 border border-surface-300 shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <p class="text-sm font-medium" style="color:#64748B">Total Classes</p>
+                        <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:rgba(59,130,246,0.1)">
+                            <i class="fas fa-school" style="color:#3B82F6"></i>
+                        </div>
+                    </div>
+                    <p class="text-3xl font-extrabold" style="color:#0F172A" x-text="stats.classes">0</p>
+                </div>
+
+                <div class="bg-white rounded-xl p-5 border border-surface-300 shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <p class="text-sm font-medium" style="color:#64748B">Conflicts</p>
+                        <div class="w-10 h-10 rounded-lg flex items-center justify-center" style="background:rgba(239,68,68,0.1)">
+                            <i class="fas fa-exclamation-triangle" style="color:#EF4444"></i>
+                        </div>
+                    </div>
+                    <p class="text-3xl font-extrabold" x-text="stats.conflicts" x-bind:style="stats.conflicts > 0 ? 'color:#EF4444' : 'color:#22C55E'">0</p>
+                </div>
+            </div>
+
+            <!-- Timetable Grid + Config Side by Side -->
+            <div class="flex flex-col lg:flex-row gap-6">
+
+            <!-- Config Side Panel -->
+            {% if user.role == 'admin' %}
+            <div class="lg:w-80 xl:w-96 flex-shrink-0 order-first lg:order-last">
+                <div class="bg-white rounded-2xl border border-surface-300 shadow-sm overflow-hidden">
+                    <button onclick="toggleConfig()" class="w-full flex items-center justify-between px-5 py-4 hover:bg-surface-100/50 transition">
+                        <div class="flex items-center gap-3">
+                            <i class="fas fa-sliders-h" style="color:#4F46E5"></i>
+                            <span class="font-semibold text-sm" style="color:#0F172A">Configure Parameters</span>
+                        </div>
+                        <i class="fas fa-chevron-down transition" id="config-arrow" style="color:#94A3B8"></i>
+                    </button>
+                    <div id="config-panel" class="hidden border-t border-surface-300 p-5">
+                        <form id="config-form" onsubmit="return saveConfig(event)" class="space-y-4">
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-xs font-medium mb-1" style="color:#64748B">School Name</label>
+                                    <input type="text" name="school_name" id="cfg-school_name" class="w-full px-3 py-2 rounded-lg text-sm" style="background:#F1F5F9;border:1px solid #E2E8F0;color:#0F172A">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium mb-1" style="color:#64748B">Periods per Day</label>
+                                    <input type="number" name="periods_per_day" id="cfg-periods_per_day" min="4" max="12" class="w-full px-3 py-2 rounded-lg text-sm" style="background:#F1F5F9;border:1px solid #E2E8F0;color:#0F172A">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium mb-1" style="color:#64748B">Period Duration (min)</label>
+                                    <input type="number" name="period_duration" id="cfg-period_duration" min="20" max="90" class="w-full px-3 py-2 rounded-lg text-sm" style="background:#F1F5F9;border:1px solid #E2E8F0;color:#0F172A">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium mb-1" style="color:#64748B">Start Time</label>
+                                    <input type="time" name="start_time" id="cfg-start_time" class="w-full px-3 py-2 rounded-lg text-sm" style="background:#F1F5F9;border:1px solid #E2E8F0;color:#0F172A">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium mb-1" style="color:#64748B">Lunch After Period</label>
+                                    <input type="number" name="lunch_period" id="cfg-lunch_period" min="-1" max="11" class="w-full px-3 py-2 rounded-lg text-sm" style="background:#F1F5F9;border:1px solid #E2E8F0;color:#0F172A">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium mb-1" style="color:#64748B">Lunch Duration (min)</label>
+                                    <input type="number" name="lunch_duration" id="cfg-lunch_duration" min="15" max="90" class="w-full px-3 py-2 rounded-lg text-sm" style="background:#F1F5F9;border:1px solid #E2E8F0;color:#0F172A">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium mb-2" style="color:#64748B">Working Days</label>
+                                <div class="flex flex-wrap gap-2" id="working-days-container"></div>
+                                <input type="hidden" name="working_days" id="cfg-working_days">
+                            </div>
+                            <div class="flex gap-2 pt-1">
+                                <button type="submit" class="flex-1 px-3 py-2 rounded-lg text-sm font-semibold text-white transition" style="background:#4F46E5" onmouseover="this.style.background='#6366F1'" onmouseout="this.style.background='#4F46E5'">
+                                    <i class="fas fa-save mr-1"></i> Save
+                                </button>
+                                <div id="cfg-saved-msg" class="hidden text-green-500 text-sm flex items-center gap-1">
+                                    <i class="fas fa-check"></i> Saved!
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Timetable Grid -->
+            <div class="flex-1 min-w-0 bg-white rounded-2xl border border-surface-300 shadow-sm overflow-hidden">
+                <div class="px-5 py-4 border-b border-surface-300 flex items-center justify-between flex-wrap gap-2">
+                    <h2 class="text-base font-bold" style="color:#0F172A">
+                        <i class="fas fa-calendar-alt mr-2" style="color:#4F46E5"></i> Timetable Overview
+                    </h2>
+                    <div class="flex items-center gap-2">
+                        <select x-model="selectedClass" @change="loadTimetable()" class="px-3 py-1.5 rounded-lg text-sm border-none outline-none" style="background:#F1F5F9;color:#0F172A">
+                            <option value="">All Classes</option>
+                            {% for c in classes %}
+                            <option value="{{ c.id }}">{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="flex items-center gap-1 border-l border-surface-300 pl-2 ml-1">
+                            <button @click="exportExcel()" class="export-btn" title="Download Excel" style="color:#4F46E5">
+                                <i class="fas fa-file-excel"></i>
+                            </button>
+                            <button @click="exportCSV()" class="export-btn" title="Download CSV" style="color:#4F46E5">
+                                <i class="fas fa-file-csv"></i>
+                            </button>
+                            <button @click="exportPDF()" class="export-btn" title="Download PDF" style="color:#4F46E5">
+                                <i class="fas fa-file-pdf"></i>
+                            </button>
+                            <button @click="exportPrint()" class="export-btn" title="Print" style="color:#4F46E5">
+                                <i class="fas fa-print"></i>
+                            </button>
+                        </div>
+                        <a href="/timetable" class="text-sm font-medium flex items-center gap-1" style="color:#4F46E5">
+                            Full View <i class="fas fa-arrow-right" style="font-size:10px"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Loading State -->
+                <div x-show="loading" class="flex items-center justify-center py-16">
+                    <div class="flex items-center gap-2 text-sm" style="color:#94A3B8">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>Loading timetable...</span>
+                    </div>
+                </div>
+
+                <!-- Empty State -->
+                <div x-show="!loading && entries.length === 0" class="py-16 text-center">
+                    <div class="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style="background:rgba(79,70,229,0.08)">
+                        <i class="fas fa-calendar-alt text-2xl" style="color:#4F46E5"></i>
+                    </div>
+                    <p class="font-semibold mb-1">No Timetable Generated</p>
+                    <p class="text-sm mb-4" style="color:#94A3B8">Click "Generate Timetable" to create one</p>
+                    <button @click="generateNow()" class="px-5 py-2 rounded-xl text-sm font-semibold text-white" style="background:#4F46E5">
+                        <i class="fas fa-magic mr-2"></i> Generate Now
+                    </button>
+                </div>
+
+                <!-- Grid -->
+                <div x-show="!loading && entries.length > 0" class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-surface-300">
+                                <th class="p-3 text-left font-medium text-xs uppercase tracking-wider" style="color:#64748B;width:80px">Time</th>
+                                {% for day_idx in range(6) %}
+                                <th class="p-3 text-center font-medium text-xs uppercase tracking-wider" style="color:#64748B">
+                                    {{ ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][day_idx] }}
+                                </th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="(p, pIdx) in periods" :key="p">
+                                <tr x-bind:class="pIdx < periods.length - 1 ? 'border-b border-surface-300' : ''">
+                                    <td class="p-3 text-xs font-medium align-top" style="color:#64748B;width:80px">
+                                        <span x-text="'Period ' + (p + 1)"></span>
+                                        <div class="text-[10px] mt-0.5" style="color:#94A3B8" x-text="getPeriodTime(p)"></div>
+                                    </td>
+                                    {% for day_idx in range(6) %}
+                                    <td class="p-1.5 cell-drop align-top" style="width:14%"
+                                        @dragover.prevent="$el.classList.add('drag-over')"
+                                        @dragleave="$el.classList.remove('drag-over')"
+                                        @drop.prevent="handleDrop($event, {{ day_idx }}, p); $el.classList.remove('drag-over')">
+
+                                        <template x-if="p === lunchPeriod">
+                                            <div x-show="!getCell({{ day_idx }}, p)"
+                                                 class="flex items-center justify-center gap-1 py-3 px-2 rounded-lg text-xs font-medium" style="background:#F1F5F9;color:#94A3B8">
+                                                <i class="fas fa-utensils" style="font-size:10px"></i>
+                                                <span>Lunch</span>
+                                            </div>
+                                            <div x-show="getCell({{ day_idx }}, p)"
+                                                 class="tt-cell rounded-lg p-2 transition cursor-grab"
+                                                 :style="getCellStyle({{ day_idx }}, p)"
+                                                 draggable="true"
+                                                 @dragstart="handleDragStart($event, {{ day_idx }}, p)"
+                                                 @dragend="$el.classList.remove('dragging')">
+                                                <div class="font-semibold text-xs leading-tight" x-text="getCell({{ day_idx }}, p)?.subject_name || ''"></div>
+                                                <div class="text-[10px] mt-0.5" style="color:#64748B" x-text="getCell({{ day_idx }}, p)?.teacher_name || ''"></div>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="p !== lunchPeriod">
+                                            <div x-show="getCell({{ day_idx }}, p)" class="tt-cell rounded-lg p-2 transition cursor-grab"
+                                                 :style="getCellStyle({{ day_idx }}, p)"
+                                                 draggable="true"
+                                                 @dragstart="handleDragStart($event, {{ day_idx }}, p)"
+                                                 @dragend="$el.classList.remove('dragging')">
+                                                <div class="font-semibold text-xs leading-tight" x-text="getCell({{ day_idx }}, p)?.subject_name || ''"></div>
+                                                <div class="text-[10px] mt-0.5" style="color:#64748B" x-text="getCell({{ day_idx }}, p)?.teacher_name || ''"></div>
+                                            </div>
+                                            <div x-show="!getCell({{ day_idx }}, p)" class="cell-empty"></div>
+                                        </template>
+                                    </td>
+                                    {% endfor %}
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            </div>
+
+            <!-- Generate Modal -->
+            <div x-show="showGenModal" x-transition class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+                <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-surface-300 shadow-xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold" style="color:#0F172A">Generate Timetable</h3>
+                        <button @click="showGenModal=false" style="color:#94A3B8">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div x-show="!genResult" class="text-center py-8">
+                        <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style="background:rgba(79,70,229,0.1)">
+                            <i class="fas fa-cog fa-spin text-2xl" style="color:#4F46E5"></i>
+                        </div>
+                        <p style="color:#64748B">Generating timetable...</p>
+                    </div>
+                    <div x-show="genResult" class="text-center py-4" x-html="genResult">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Conflict Modal -->
+            <div x-show="showConflictModal" x-transition class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+                <div class="bg-white rounded-2xl p-6 w-full max-w-md border border-surface-300 shadow-xl">
+                    <div class="text-center">
+                        <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style="background:rgba(239,68,68,0.1)">
+                            <i class="fas fa-exclamation-triangle text-2xl" style="color:#EF4444"></i>
+                        </div>
+                        <h3 class="text-lg font-bold mb-2" style="color:#0F172A">Conflict Detected</h3>
+                        <p class="text-sm mb-6" style="color:#64748B" x-text="conflictMessage"></p>
+                        <button @click="showConflictModal=false" class="px-5 py-2 rounded-xl text-sm font-semibold" style="background:#F1F5F9;color:#0F172A">
+                            Dismiss
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+        function dashboardApp() {
+            return {
+                sidebarOpen: false, searchQuery: '', loading: false, showGenModal: false, genResult: '',
+                selectedClass: '', entries: [], periods: Array.from({length:8}, (_,i) => i),
+                lunchPeriod: 4, startTime: '08:00', periodDuration: 45, classTimeSlots: [],
+                stats: {teachers: 0, classes: 0, conflicts: 0},
+                notifications: [],
+                dragData: null, showConflictModal: false, conflictMessage: '',
+
+                async init() {
+                    await this.loadConfig();
+                    await this.loadStats();
+                    await this.loadNotifications();
+                    await this.loadTimetable();
+                },
+
+                async loadConfig() {
+                    try {
+                        const cfg = await (await fetch('/api/config')).json();
+                        this.periods = Array.from({length: cfg.periods_per_day}, (_,i) => i);
+                        this.lunchPeriod = cfg.lunch_period;
+                        this.startTime = cfg.start_time;
+                        this.periodDuration = cfg.period_duration;
+                    } catch(e) {}
+                },
+
+                async loadStats() {
+                    try {
+                        const data = await (await fetch('/api/data')).json();
+                        this.stats.teachers = data.teachers.length;
+                        this.stats.classes = data.classes.length;
+                    } catch(e) {}
+                    try {
+                        const conflictData = await (await fetch('/api/timetable/conflicts')).json();
+                        this.stats.conflicts = conflictData.count || 0;
+                    } catch(e) {}
+                },
+
+                async loadNotifications() {
+                    try {
+                        this.notifications = await (await fetch('/api/notifications')).json();
+                    } catch(e) { this.notifications = []; }
+                },
+
+                async loadTimetable() {
+                    this.loading = true;
+                    try {
+                        let url = '/api/timetable?';
+                        if (this.selectedClass) url += 'class_id=' + this.selectedClass + '&';
+                        this.entries = await (await fetch(url)).json();
+                        await this.loadTimeSlots();
+                    } catch(e) { this.entries = []; }
+                    this.loading = false;
+                },
+
+                async loadTimeSlots() {
+                    if (!this.selectedClass) { this.classTimeSlots = []; return; }
+                    try {
+                        this.classTimeSlots = await (await fetch(`/api/classes/${this.selectedClass}/time-slots`)).json();
+                        if (this.classTimeSlots.length) {
+                            this.periods = this.classTimeSlots.map(s => s.period_number);
+                            this.lunchPeriod = (this.classTimeSlots.find(s => s.is_break) || {}).period_number ?? -1;
+                        }
+                    } catch(e) { this.classTimeSlots = []; }
+                },
+
+                getCell(day, period) {
+                    return this.entries.find(e => e.day_of_week === day && e.period_number === period);
+                },
+
+                handleDragStart(e, day, period) {
+                    this.dragData = { day, period };
+                    e.target.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                },
+
+                async handleDrop(e, toDay, toPeriod) {
+                    if (!this.dragData) return;
+                    if (this.dragData.day === toDay && this.dragData.period === toPeriod) return;
+                    try {
+                        const res = await fetch('/api/timetable/swap', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                class_id: this.selectedClass || this.entries[0]?.class_id,
+                                day1: this.dragData.day, period1: this.dragData.period,
+                                day2: toDay, period2: toPeriod
+                            })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            await this.loadTimetable();
+                            await this.loadStats();
+                        } else {
+                            this.conflictMessage = data.detail?.message || data.message || 'Swap failed — conflict detected';
+                            this.showConflictModal = true;
+                        }
+                    } catch (err) {
+                        this.conflictMessage = err.message || 'Swap failed';
+                        this.showConflictModal = true;
+                    }
+                    this.dragData = null;
+                },
+
+                getCellStyle(day, period) {
+                    const cell = this.getCell(day, period);
+                    if (!cell) return '';
+                    const c = cell.subject_color || '#4F46E5';
+                    const r = parseInt(c.slice(1,3), 16), g = parseInt(c.slice(3,5), 16), b = parseInt(c.slice(5,7), 16);
+                    return `background:rgba(${r},${g},${b},0.15); border-left:4px solid ${c}; color:${c}; font-weight:600`;
+                },
+
+                getPeriodTime(p) {
+                    if (this.classTimeSlots.length) {
+                        const slot = this.classTimeSlots.find(s => s.period_number === p);
+                        if (slot) return `${slot.start_time.slice(0,5)} - ${slot.end_time.slice(0,5)}`;
+                    }
+                    const [h, m] = this.startTime.split(':').map(Number);
+                    const start = h * 60 + m + p * (this.periodDuration + 5);
+                    const end = start + this.periodDuration;
+                    return `${String(Math.floor(start/60)).padStart(2,'0')}:${String(start%60).padStart(2,'0')} - ${String(Math.floor(end/60)).padStart(2,'0')}:${String(end%60).padStart(2,'0')}`;
+                },
+
+                async generateNow() {
+                    this.showGenModal = true;
+                    this.genResult = '';
+                    try {
+                        const res = await fetch('/api/timetable/generate', { method: 'POST' });
+                        const data = await res.json();
+                        if (data.success) {
+                            this.genResult = `
+                                <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style="background:rgba(34,197,94,0.12)">
+                                    <i class="fas fa-check text-2xl" style="color:#22C55E"></i>
+                                </div>
+                                <p class="font-semibold mb-1" style="color:#22C55E">Timetable Generated!</p>
+                                <p class="text-sm mb-4" style="color:#64748B">All periods assigned successfully.</p>
+                                <button @click="showGenModal=false; loadTimetable(); loadStats()" class="px-5 py-2 rounded-xl text-sm font-semibold text-white" style="background:#4F46E5">Done</button>
+                            `;
+                        } else {
+                            const err = (data.errors || ['Generation failed']).join('<br>');
+                            this.genResult = `
+                                <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style="background:rgba(239,68,68,0.1)">
+                                    <i class="fas fa-times text-2xl" style="color:#EF4444"></i>
+                                </div>
+                                <p class="font-semibold mb-2" style="color:#EF4444">Generation Failed</p>
+                                <p class="text-sm" style="color:#64748B">${err}</p>
+                                <button @click="showGenModal=false" class="mt-4 px-5 py-2 rounded-xl text-sm font-semibold" style="background:#F1F5F9;color:#0F172A">Close</button>
+                            `;
+                        }
+                    } catch(e) {
+                        this.genResult = `<p style="color:#EF4444">${e.message}</p>`;
+                    }
+                },
+
+                exportExcel() {
+                    const cls = this.selectedClass;
+                    window.open('/api/export/excel' + (cls ? '?class_id=' + cls : ''), '_blank');
+                },
+
+                exportCSV() {
+                    const cls = this.selectedClass;
+                    window.open('/api/export/csv' + (cls ? '?class_id=' + cls : ''), '_blank');
+                },
+
+                exportPDF() {
+                    const cls = this.selectedClass;
+                    window.open('/api/export/pdf' + (cls ? '?class_id=' + cls : ''), '_blank');
+                },
+
+                exportPrint() {
+                    const cls = this.selectedClass;
+                    const url = '/timetable' + (cls ? '?class_id=' + cls : '');
+                    const w = window.open(url, '_blank');
+                    if (w) {
+                        w.onload = function() {
+                            setTimeout(function() { w.print(); }, 500);
+                        };
+                    }
+                }
+            }
+        }
+
+        // ─── Config Panel Functions ───
+        const DAY_NAMES = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+        function toggleConfig() {
+            const panel = document.getElementById('config-panel');
+            const arrow = document.getElementById('config-arrow');
+            if (!panel) return;
+            panel.classList.toggle('hidden');
+            arrow.style.transform = panel.classList.contains('hidden') ? '' : 'rotate(180deg)';
+        }
+
+        async function loadConfigForm() {
+            try {
+                const cfg = await (await fetch('/api/config')).json();
+                const ids = ['school_name','periods_per_day','period_duration','start_time','lunch_period','lunch_duration'];
+                ids.forEach(id => {
+                    const el = document.getElementById('cfg-' + id);
+                    if (el) el.value = cfg[id.replace('_','')] ?? cfg[id] ?? '';
+                });
+                const wd = (cfg.working_days || '0,1,2,3,4,5').split(',').map(Number);
+                const container = document.getElementById('working-days-container');
+                if (!container) return;
+                container.innerHTML = '';
+                DAY_NAMES.forEach((name, idx) => {
+                    const label = document.createElement('label');
+                    label.className = 'relative cursor-pointer';
+                    const cb = document.createElement('input');
+                    cb.type = 'checkbox'; cb.value = idx;
+                    cb.checked = wd.includes(idx);
+                    cb.className = 'peer sr-only working-day-cb';
+                    const div = document.createElement('div');
+                    div.className = 'px-3 py-1.5 rounded-lg border-2 text-xs font-medium transition';
+                    div.style.borderColor = '#E2E8F0';
+                    div.style.color = '#64748B';
+                    div.textContent = name.slice(0, 3);
+                    div.style.setProperty('background', 'transparent');
+                    label.appendChild(cb); label.appendChild(div);
+                    container.appendChild(label);
+                });
+                document.querySelectorAll('.working-day-cb').forEach(cb => {
+                    cb.addEventListener('change', () => {
+                        cb.parentElement.querySelector('div').style.borderColor = cb.checked ? '#4F46E5' : '#E2E8F0';
+                        cb.parentElement.querySelector('div').style.background = cb.checked ? 'rgba(79,70,229,0.08)' : 'transparent';
+                    });
+                    if (cb.checked) {
+                        cb.parentElement.querySelector('div').style.borderColor = '#4F46E5';
+                        cb.parentElement.querySelector('div').style.background = 'rgba(79,70,229,0.08)';
+                    }
+                });
+            } catch(e) {}
+        }
+
+        async function saveConfig(e) {
+            e.preventDefault();
+            const form = document.getElementById('config-form');
+            if (!form) return false;
+            const formData = new FormData(form);
+            const checked = document.querySelectorAll('.working-day-cb:checked');
+            formData.set('working_days', Array.from(checked).map(c => c.value).join(',') || '0,1,2,3,4,5');
+            try {
+                const res = await fetch('/api/config', { method: 'POST', body: new URLSearchParams(formData) });
+                const msg = document.getElementById('cfg-saved-msg');
+                if (res.ok && msg) {
+                    msg.classList.remove('hidden');
+                    setTimeout(() => msg.classList.add('hidden'), 3000);
+                    // Reload the timetable config
+                    const alpineEl = document.querySelector('[x-data]').__x;
+                    if (alpineEl) await alpineEl.loadConfig();
+                }
+            } catch(e) {}
+            return false;
+        }
+
+        loadConfigForm();
+    </script>
+</body>
+</html>

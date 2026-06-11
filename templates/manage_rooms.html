@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Rooms — FreeTimetableGen</title>
+    <link rel="stylesheet" href="/static/css/app.css?v=2">
+    <link rel="stylesheet" href="/static/css/fontawesome.min.css">
+    
+    <script src="/static/js/alpine.min.js" defer></script>
+    
+</head>
+<body class="font-sans bg-surface-900 text-body min-h-screen" x-data="rooms()">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        <div class="flex items-center justify-between mb-8">
+            <div>
+                <a href="/dashboard" class="text-sm text-surface-400 hover:text-brand-400 mb-2 inline-block"><i class="fas fa-arrow-left mr-1"></i> Dashboard</a>
+                <h1 class="text-2xl font-extrabold">Manage Rooms</h1>
+            </div>
+            <button @click="showModal=true;resetForm()" class="px-4 py-2 bg-brand-500 hover:bg-brand-400 rounded-xl text-sm font-semibold transition">
+                <i class="fas fa-plus mr-2"></i> Add Room
+            </button>
+        </div>
+
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <template x-for="r in roomsList" :key="r.id">
+                <div class="bg-surface-800 rounded-2xl border border-surface-700 p-5 hover:border-surface-600 transition">
+                    <div class="flex items-start justify-between mb-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl flex items-center justify-center" :class="r.type==='lab'?'bg-orange-500/20':'bg-cyan-500/20'">
+                                <i :class="r.type==='lab'?'fas fa-flask text-orange-400':r.type==='hall'?'fas fa-building text-purple-400':'fas fa-door-open text-cyan-400'"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold" x-text="r.name"></h3>
+                                <p class="text-xs text-surface-400 capitalize" x-text="r.type"></p>
+                            </div>
+                        </div>
+                        <button @click="deleteRoom(r.id)" class="text-surface-400 hover:text-red-400 transition"><i class="fas fa-trash text-sm"></i></button>
+                    </div>
+                    <div class="flex items-center gap-4 text-xs text-surface-400">
+                        <span><i class="fas fa-users mr-1"></i> Capacity: <span x-text="r.capacity"></span></span>
+                        <span x-show="r.equipment"><i class="fas fa-cog mr-1"></i> <span x-text="r.equipment"></span></span>
+                    </div>
+                </div>
+            </template>
+        </div>
+        <div x-show="roomsList.length===0" class="bg-surface-800 rounded-2xl border border-surface-700 p-12 text-center text-surface-500">
+            <i class="fas fa-door-open text-4xl mb-3"></i>
+            <p>No rooms yet. Add classrooms, labs, or halls!</p>
+        </div>
+
+        <!-- Modal -->
+        <div x-show="showModal" x-transition class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div @click.away="showModal=false" class="bg-surface-800 rounded-2xl p-6 w-full max-w-md border border-surface-700">
+                <h3 class="text-lg font-bold mb-4">Add Room</h3>
+                <form @submit.prevent="saveRoom()" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-surface-300 mb-1">Room Name *</label>
+                        <input type="text" x-model="form.name" required class="w-full px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-600 text-white focus:ring-2 focus:ring-brand-500 text-sm" placeholder="e.g. Room 101">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-surface-300 mb-1">Type *</label>
+                            <select x-model="form.type" class="w-full px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-600 text-white focus:ring-2 focus:ring-brand-500 text-sm">
+                                <option value="classroom">Classroom</option>
+                                <option value="lab">Lab</option>
+                                <option value="hall">Hall</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-surface-300 mb-1">Capacity</label>
+                            <input type="number" x-model="form.capacity" min="1" class="w-full px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-600 text-white focus:ring-2 focus:ring-brand-500 text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-surface-300 mb-1">Equipment</label>
+                        <input type="text" x-model="form.equipment" class="w-full px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-600 text-white focus:ring-2 focus:ring-brand-500 text-sm" placeholder="e.g. Projector, Smart Board">
+                    </div>
+                    <div class="flex gap-3 pt-2">
+                        <button type="button" @click="showModal=false" class="flex-1 py-2.5 bg-surface-700 hover:bg-surface-600 rounded-xl text-sm font-medium transition">Cancel</button>
+                        <button type="submit" class="flex-1 py-2.5 bg-brand-500 hover:bg-brand-400 rounded-xl text-sm font-semibold transition">Create</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function rooms() {
+            return {
+                roomsList: [], showModal: false,
+                form: { name:'', type:'classroom', capacity:40, equipment:'' },
+                init() { this.load(); },
+                async load() { this.roomsList = await (await fetch('/api/rooms')).json(); },
+                resetForm() { this.form={name:'',type:'classroom',capacity:40,equipment:''}; },
+                async saveRoom() {
+                    const fd = new FormData();
+                    Object.keys(this.form).forEach(k => fd.append(k, this.form[k]));
+                    await fetch('/api/rooms',{method:'POST',body:fd});
+                    this.showModal=false; this.load();
+                },
+                async deleteRoom(id) { if(!confirm('Delete?'))return; await fetch(`/api/rooms/${id}`,{method:'DELETE'}); this.load(); }
+            }
+        }
+    </script>
+</body>
+</html>
+

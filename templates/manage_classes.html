@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Classes — FreeTimetableGen</title>
+    <link rel="stylesheet" href="/static/css/app.css?v=2">
+    <link rel="stylesheet" href="/static/css/fontawesome.min.css">
+    
+    <script src="/static/js/alpine.min.js" defer></script>
+    
+</head>
+<body class="font-sans bg-surface-900 text-body min-h-screen" x-data="classes()">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        <div class="flex items-center justify-between mb-8">
+            <div>
+                <a href="/dashboard" class="text-sm text-surface-400 hover:text-brand-400 mb-2 inline-block"><i class="fas fa-arrow-left mr-1"></i> Dashboard</a>
+                <h1 class="text-2xl font-extrabold">Manage Classes</h1>
+            </div>
+            <div class="flex gap-3">
+                <label class="px-4 py-2 bg-surface-800 hover:bg-surface-700 rounded-xl text-sm font-medium cursor-pointer transition border border-surface-700">
+                    <i class="fas fa-upload mr-2"></i> Import CSV
+                    <input type="file" accept=".csv" class="hidden" onchange="importClasses(this)">
+                </label>
+                <button @click="showModal=true;resetForm()" class="px-4 py-2 bg-brand-500 hover:bg-brand-400 rounded-xl text-sm font-semibold transition">
+                    <i class="fas fa-plus mr-2"></i> Add Class
+                </button>
+            </div>
+        </div>
+
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <template x-for="c in classesList" :key="c.id">
+                <div class="bg-surface-800 rounded-2xl border border-surface-700 p-5 hover:border-surface-600 transition">
+                    <div class="flex items-start justify-between mb-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                                <i class="fas fa-school text-blue-400"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold" x-text="c.name"></h3>
+                                <p class="text-xs text-surface-400">Grade <span x-text="c.grade"></span> - Section <span x-text="c.section"></span></p>
+                            </div>
+                        </div>
+                    <div class="flex gap-2">
+                            <button @click="editClass(c)" class="text-surface-400 hover:text-brand-400 transition" title="Edit"><i class="fas fa-edit text-sm"></i></button>
+                            <button @click="openTimeSlots(c)" class="text-surface-400 hover:text-amber-400 transition" title="Time Slots"><i class="fas fa-clock text-sm"></i></button>
+                            <button @click="deleteClass(c.id)" class="text-surface-400 hover:text-red-400 transition" title="Delete"><i class="fas fa-trash text-sm"></i></button>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-4 text-xs text-surface-400">
+                        <span><i class="fas fa-users mr-1"></i> <span x-text="c.strength"></span> students</span>
+                        <span><i class="fas fa-book mr-1"></i> <span x-text="c.subjects ? c.subjects.length : 0"></span> subjects</span>
+                    </div>
+                    <div class="mt-3 flex flex-wrap gap-1">
+                        <template x-for="s in (c.subjects||[])" :key="s.id">
+                            <span class="px-2 py-0.5 rounded text-xs bg-blue-500/20 text-blue-400" x-text="s.name"></span>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+        <div x-show="classesList.length===0" class="bg-surface-800 rounded-2xl border border-surface-700 p-12 text-center text-surface-500">
+            <i class="fas fa-school text-4xl mb-3"></i>
+            <p>No classes yet. Add your first class!</p>
+        </div>
+
+        <!-- Modal -->
+        <div x-show="showModal" x-transition class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div @click.away="showModal=false" class="bg-surface-800 rounded-2xl p-6 w-full max-w-lg border border-surface-700 max-h-[90vh] overflow-y-auto">
+                <h3 class="text-lg font-bold mb-4" x-text="editingId ? 'Edit Class' : 'Add Class'"></h3>
+                <form @submit.prevent="saveClass()" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-surface-300 mb-1">Class Name *</label>
+                        <input type="text" x-model="form.name" required class="w-full px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-600 text-white focus:ring-2 focus:ring-brand-500 text-sm" placeholder="e.g. Class 10-A">
+                    </div>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-surface-300 mb-1">Grade *</label>
+                            <input type="text" x-model="form.grade" required class="w-full px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-600 text-white focus:ring-2 focus:ring-brand-500 text-sm" placeholder="e.g. 10">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-surface-300 mb-1">Section *</label>
+                            <input type="text" x-model="form.section" required class="w-full px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-600 text-white focus:ring-2 focus:ring-brand-500 text-sm" placeholder="e.g. A">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-surface-300 mb-1">Strength</label>
+                            <input type="number" x-model="form.strength" min="1" class="w-full px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-600 text-white focus:ring-2 focus:ring-brand-500 text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-surface-300 mb-2">Assign Subjects (periods/week)</label>
+                        <div class="space-y-2 max-h-60 overflow-y-auto p-3 bg-surface-700 rounded-xl">
+                            <template x-for="s in allSubjects" :key="s.id">
+                                <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-600 transition">
+                                    <input type="checkbox" :value="s.id" x-model="form.subject_ids" class="rounded border-surface-500 text-brand-500 focus:ring-brand-500">
+                                    <span class="text-sm flex-1" x-text="s.name"></span>
+                                    <input type="number" x-model="form.subject_periods[s.id]" min="1" max="10" class="w-16 px-2 py-1 rounded bg-surface-600 border border-surface-500 text-white text-xs text-center" placeholder="5">
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="flex gap-3 pt-2">
+                        <button type="button" @click="showModal=false" class="flex-1 py-2.5 bg-surface-700 hover:bg-surface-600 rounded-xl text-sm font-medium transition">Cancel</button>
+                        <button type="submit" class="flex-1 py-2.5 bg-brand-500 hover:bg-brand-400 rounded-xl text-sm font-semibold transition">
+                            <span x-text="editingId ? 'Update' : 'Create'"></span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+        <!-- Time Slots Modal -->
+        <div x-show="showTimeSlots" x-transition class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div @click.away="showTimeSlots=false" class="bg-surface-800 rounded-2xl p-6 w-full max-w-2xl border border-surface-700 max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold">Time Slots — <span x-text="timeSlotsClass?.name"></span></h3>
+                    <button @click="showTimeSlots=false" class="text-surface-400 hover:text-body transition"><i class="fas fa-times"></i></button>
+                </div>
+                <p class="text-sm text-surface-400 mb-4">Set custom start/end times and breaks for each period.</p>
+                <div class="space-y-2 mb-4">
+                    <template x-for="(slot, i) in timeSlots" :key="i">
+                        <div class="flex items-center gap-3 p-3 bg-surface-700 rounded-xl">
+                            <span class="text-sm font-medium w-20">Period <span x-text="slot.period_number+1"></span></span>
+                            <input type="time" x-model="slot.start_time" class="flex-1 px-3 py-1.5 rounded-lg bg-surface-600 border border-surface-500 text-white text-sm">
+                            <span class="text-surface-400 text-xs">to</span>
+                            <input type="time" x-model="slot.end_time" class="flex-1 px-3 py-1.5 rounded-lg bg-surface-600 border border-surface-500 text-white text-sm">
+                            <label class="flex items-center gap-2 text-sm cursor-pointer whitespace-nowrap">
+                                <input type="checkbox" x-model="slot.is_break" class="rounded border-surface-500 text-amber-500 focus:ring-amber-500">
+                                <span class="text-surface-300">Break</span>
+                            </label>
+                        </div>
+                    </template>
+                </div>
+                <div class="flex justify-between items-center pt-2">
+                    <button @click="resetTimeSlots()" class="px-4 py-2 bg-surface-700 hover:bg-surface-600 rounded-xl text-sm font-medium transition">
+                        <i class="fas fa-undo mr-1"></i> Reset to Defaults
+                    </button>
+                    <div class="flex gap-3">
+                        <button @click="showTimeSlots=false" class="px-4 py-2 bg-surface-700 hover:bg-surface-600 rounded-xl text-sm font-medium transition">Cancel</button>
+                        <button @click="saveTimeSlots()" class="px-4 py-2 bg-brand-500 hover:bg-brand-400 rounded-xl text-sm font-semibold transition">
+                            <i class="fas fa-save mr-1"></i> Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function classes() {
+            return {
+                classesList: [], allSubjects: [], showModal: false, editingId: null,
+                form: { name:'', grade:'', section:'', strength:40, subject_ids:[], subject_periods:{} },
+                showTimeSlots: false, timeSlotsClass: null, timeSlots: [],
+                init() { this.load(); this.loadSubjects(); },
+                async load() { this.classesList = await (await fetch('/api/classes')).json(); },
+                async loadSubjects() { this.allSubjects = await (await fetch('/api/subjects')).json(); },
+                resetForm() { this.editingId=null; this.form={name:'',grade:'',section:'',strength:40,subject_ids:[],subject_periods:{}}; },
+                editClass(c) {
+                    this.editingId=c.id;
+                    const sp={}; (c.subjects||[]).forEach(s => sp[s.id]=s.periods_per_week);
+                    this.form={name:c.name,grade:c.grade,section:c.section,strength:c.strength,subject_ids:Object.keys(sp).map(Number),subject_periods:sp};
+                    this.showModal=true;
+                },
+                async saveClass() {
+                    const sd={}; this.form.subject_ids.forEach(id => sd[id]=this.form.subject_periods[id]||5);
+                    const fd = new FormData();
+                    fd.append('name',this.form.name); fd.append('grade',this.form.grade);
+                    fd.append('section',this.form.section); fd.append('strength',this.form.strength);
+                    fd.append('subject_data',JSON.stringify(sd));
+                    await fetch(this.editingId?`/api/classes/${this.editingId}`:'/api/classes',{method:this.editingId?'PUT':'POST',body:fd});
+                    this.showModal=false; this.load();
+                },
+                async deleteClass(id) { if(!confirm('Delete?'))return; await fetch(`/api/classes/${id}`,{method:'DELETE'}); this.load(); },
+                async openTimeSlots(c) {
+                    this.timeSlotsClass = c;
+                    this.timeSlots = await (await fetch(`/api/classes/${c.id}/time-slots`)).json();
+                    this.showTimeSlots = true;
+                },
+                async saveTimeSlots() {
+                    await fetch(`/api/classes/${this.timeSlotsClass.id}/time-slots`, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(this.timeSlots)
+                    });
+                    this.showTimeSlots = false;
+                },
+                async resetTimeSlots() {
+                    if (!confirm('Reset time slots to defaults?')) return;
+                    await fetch(`/api/classes/${this.timeSlotsClass.id}/time-slots/reset`, {method: 'POST'});
+                    this.timeSlots = await (await fetch(`/api/classes/${this.timeSlotsClass.id}/time-slots`)).json();
+                }
+            }
+        }
+        async function importClasses(input) {
+            const file=input.files[0]; if(!file) return;
+            const fd=new FormData(); fd.append('file',file);
+            const data=await(await fetch('/api/import/classes',{method:'POST',body:fd})).json();
+            alert(`Imported ${data.imported} classes`); location.reload();
+        }
+    </script>
+</body>
+</html>
+

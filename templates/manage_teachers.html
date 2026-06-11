@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Teachers — FreeTimetableGen</title>
+    <link rel="stylesheet" href="/static/css/app.css?v=2">
+    <link rel="stylesheet" href="/static/css/fontawesome.min.css">
+    
+    <script src="/static/js/alpine.min.js" defer></script>
+    
+</head>
+<body class="font-sans bg-surface-900 text-body min-h-screen" x-data="teachers()">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        <div class="flex items-center justify-between mb-8">
+            <div>
+                <a href="/dashboard" class="text-sm text-surface-400 hover:text-brand-400 mb-2 inline-block"><i class="fas fa-arrow-left mr-1"></i> Dashboard</a>
+                <h1 class="text-2xl font-extrabold">Manage Teachers</h1>
+            </div>
+            <div class="flex gap-3">
+                <label class="px-4 py-2 bg-surface-800 hover:bg-surface-700 rounded-xl text-sm font-medium cursor-pointer transition border border-surface-700">
+                    <i class="fas fa-upload mr-2"></i> Import CSV
+                    <input type="file" accept=".csv" class="hidden" onchange="importTeachers(this)">
+                </label>
+                <button @click="showModal=true;resetForm()" class="px-4 py-2 bg-brand-500 hover:bg-brand-400 rounded-xl text-sm font-semibold transition">
+                    <i class="fas fa-plus mr-2"></i> Add Teacher
+                </button>
+            </div>
+        </div>
+
+        <!-- Teacher List -->
+        <div class="bg-surface-800 rounded-2xl border border-surface-700 overflow-hidden">
+            <div class="p-4 border-b border-surface-700">
+                <input type="text" x-model="search" placeholder="Search teachers..." 
+                    class="w-full px-4 py-2 rounded-xl bg-surface-700 border border-surface-600 text-white placeholder-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm">
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-surface-700 text-surface-400">
+                            <th class="p-4 text-left font-medium">Name</th>
+                            <th class="p-4 text-left font-medium">Employee ID</th>
+                            <th class="p-4 text-left font-medium">Subjects</th>
+                            <th class="p-4 text-left font-medium">Max Periods</th>
+                            <th class="p-4 text-left font-medium">Phone</th>
+                            <th class="p-4 text-right font-medium">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="t in filteredTeachers" :key="t.id">
+                            <tr class="border-b border-surface-700/50 hover:bg-surface-700/30 transition">
+                                <td class="p-4 font-medium" x-text="t.name"></td>
+                                <td class="p-4 text-surface-400" x-text="t.employee_id || '-'"></td>
+                                <td class="p-4">
+                                    <div class="flex flex-wrap gap-1">
+                                        <template x-for="s in t.subjects" :key="s.id">
+                                            <span class="px-2 py-0.5 rounded text-xs bg-brand-500/20 text-brand-400" x-text="s.name"></span>
+                                        </template>
+                                    </div>
+                                </td>
+                                <td class="p-4 text-surface-400" x-text="t.max_periods_per_day"></td>
+                                <td class="p-4 text-surface-400" x-text="t.phone || '-'"></td>
+                                <td class="p-4 text-right">
+                                    <button @click="editTeacher(t)" class="text-surface-400 hover:text-brand-400 transition mr-3"><i class="fas fa-edit"></i></button>
+                                    <button @click="deleteTeacher(t.id)" class="text-surface-400 hover:text-red-400 transition"><i class="fas fa-trash"></i></button>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+            <div x-show="filteredTeachers.length===0" class="p-8 text-center text-surface-500">
+                <i class="fas fa-chalkboard-teacher text-3xl mb-3"></i>
+                <p>No teachers found. Add your first teacher!</p>
+            </div>
+        </div>
+
+        <!-- Modal -->
+        <div x-show="showModal" x-transition class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div @click.away="showModal=false" class="bg-surface-800 rounded-2xl p-6 w-full max-w-lg border border-surface-700 max-h-[90vh] overflow-y-auto">
+                <h3 class="text-lg font-bold mb-4" x-text="editingId ? 'Edit Teacher' : 'Add Teacher'"></h3>
+                <form @submit.prevent="saveTeacher()" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-surface-300 mb-1">Name *</label>
+                        <input type="text" x-model="form.name" required class="w-full px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-600 text-white focus:ring-2 focus:ring-brand-500 text-sm">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-surface-300 mb-1">Employee ID</label>
+                            <input type="text" x-model="form.employee_id" class="w-full px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-600 text-white focus:ring-2 focus:ring-brand-500 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-surface-300 mb-1">Max Periods/Day</label>
+                            <input type="number" x-model="form.max_periods_per_day" min="1" max="10" class="w-full px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-600 text-white focus:ring-2 focus:ring-brand-500 text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-surface-300 mb-1">Specialization</label>
+                        <input type="text" x-model="form.specialization" class="w-full px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-600 text-white focus:ring-2 focus:ring-brand-500 text-sm" placeholder="e.g. Physics, Mathematics">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-surface-300 mb-1">Phone</label>
+                            <input type="text" x-model="form.phone" class="w-full px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-600 text-white focus:ring-2 focus:ring-brand-500 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-surface-300 mb-1">Email</label>
+                            <input type="email" x-model="form.email" class="w-full px-4 py-2.5 rounded-xl bg-surface-700 border border-surface-600 text-white focus:ring-2 focus:ring-brand-500 text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-surface-300 mb-2">Subjects *</label>
+                        <div class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 bg-surface-700 rounded-xl">
+                            <template x-for="s in allSubjects" :key="s.id">
+                                <label class="flex items-center gap-2 p-2 rounded-lg hover:bg-surface-600 cursor-pointer transition">
+                                    <input type="checkbox" :value="s.id" x-model="form.subject_ids" class="rounded border-surface-500 text-brand-500 focus:ring-brand-500">
+                                    <span class="text-sm" x-text="s.name"></span>
+                                </label>
+                            </template>
+                        </div>
+                        <p x-show="allSubjects.length===0" class="text-sm text-surface-500 mt-2">No subjects found. <a href="/manage/subjects" class="text-brand-400">Add subjects first</a></p>
+                    </div>
+                    <div class="flex gap-3 pt-2">
+                        <button type="button" @click="showModal=false" class="flex-1 py-2.5 bg-surface-700 hover:bg-surface-600 rounded-xl text-sm font-medium transition">Cancel</button>
+                        <button type="submit" class="flex-1 py-2.5 bg-brand-500 hover:bg-brand-400 rounded-xl text-sm font-semibold transition" :disabled="saving">
+                            <span x-show="!saving" x-text="editingId ? 'Update' : 'Create'"></span>
+                            <span x-show="saving"><i class="fas fa-spinner fa-spin"></i> Saving...</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function teachers() {
+            return {
+                teachersList: [],
+                allSubjects: [],
+                showModal: false,
+                editingId: null,
+                search: '',
+                saving: false,
+                form: { name:'', employee_id:'', specialization:'', max_periods_per_day:6, phone:'', email:'', subject_ids:[] },
+                get filteredTeachers() {
+                    if (!this.search) return this.teachersList;
+                    const q = this.search.toLowerCase();
+                    return this.teachersList.filter(t => t.name.toLowerCase().includes(q) || (t.employee_id||'').toLowerCase().includes(q));
+                },
+                init() { this.loadTeachers(); this.loadSubjects(); },
+                async loadTeachers() {
+                    const res = await fetch('/api/teachers');
+                    this.teachersList = await res.json();
+                },
+                async loadSubjects() {
+                    const res = await fetch('/api/subjects');
+                    this.allSubjects = await res.json();
+                },
+                resetForm() {
+                    this.editingId = null;
+                    this.form = { name:'', employee_id:'', specialization:'', max_periods_per_day:6, phone:'', email:'', subject_ids:[] };
+                },
+                editTeacher(t) {
+                    this.editingId = t.id;
+                    this.form = { name:t.name, employee_id:t.employee_id||'', specialization:t.specialization||'', max_periods_per_day:t.max_periods_per_day, phone:t.phone||'', email:t.email||'', subject_ids:t.subjects.map(s=>s.id) };
+                    this.showModal = true;
+                },
+                async saveTeacher() {
+                    this.saving = true;
+                    const fd = new FormData();
+                    Object.keys(this.form).forEach(k => {
+                        if (k === 'subject_ids') fd.append(k, JSON.stringify(this.form[k]));
+                        else fd.append(k, this.form[k]);
+                    });
+                    const url = this.editingId ? `/api/teachers/${this.editingId}` : '/api/teachers';
+                    await fetch(url, { method: this.editingId ? 'PUT' : 'POST', body: fd });
+                    this.showModal = false;
+                    this.saving = false;
+                    this.loadTeachers();
+                },
+                async deleteTeacher(id) {
+                    if (!confirm('Delete this teacher?')) return;
+                    await fetch(`/api/teachers/${id}`, { method: 'DELETE' });
+                    this.loadTeachers();
+                }
+            }
+        }
+        async function importTeachers(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const fd = new FormData();
+            fd.append('file', file);
+            const res = await fetch('/api/import/teachers', { method: 'POST', body: fd });
+            const data = await res.json();
+            alert(`Imported ${data.imported} teachers`);
+            location.reload();
+        }
+    </script>
+</body>
+</html>
+
