@@ -66,3 +66,6 @@ vercel.json           - Vercel build & route configuration
 | `DATABASE_URL` | No*      | PostgreSQL connection string for Vercel  |
 
 \* Required for persistent storage on Vercel. Falls back to SQLite otherwise.
+
+
+live website   https://freetimetablegen.vercel.app/
