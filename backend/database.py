@@ -40,6 +40,21 @@ if USE_POSTGRES:
         def lastrowid(self):
             return self._lastrowid
 
+        def fetchone(self):
+            if self._cur:
+                return self._cur.fetchone()
+            return None
+
+        def fetchall(self):
+            if self._cur:
+                return self._cur.fetchall()
+            return []
+
+        def __iter__(self):
+            if self._cur:
+                return iter(self._cur)
+            return iter([])
+
         def commit(self):
             self.conn.commit()
 
@@ -67,7 +82,11 @@ if USE_POSTGRES:
 else:
     import sqlite3
 
-    DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'ttgen.db')
+    if os.environ.get("VERCEL"):
+        import tempfile
+        DB_PATH = os.path.join(tempfile.gettempdir(), "ttgen.db")
+    else:
+        DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'ttgen.db')
 
     def get_db():
         conn = sqlite3.connect(DB_PATH)
