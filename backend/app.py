@@ -17,10 +17,9 @@ BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
-@app.on_event("startup")
-def startup():
-    init_db()
-    migrate_db()
+# Initialize database — runs at import time (works for both local and Vercel serverless)
+init_db()
+migrate_db()
 
 def get_current_user(request: Request):
     token = request.cookies.get("session_token")
@@ -141,7 +140,7 @@ async def create_teacher(request: Request, name: str = Form(...), employee_id: s
     db = get_db()
     try:
         if not employee_id or employee_id.strip() == '':
-            max_id = db.execute("SELECT COALESCE(MAX(id),0)+1 FROM teachers").fetchone()[0]
+            max_id = db.execute("SELECT COALESCE(MAX(id),0)+1 as v FROM teachers").fetchone()['v']
             employee_id = f"T{max_id:03d}"
         existing = db.execute("SELECT id FROM teachers WHERE employee_id=?", (employee_id,)).fetchone()
         if existing:
